@@ -11,15 +11,15 @@ paths:
 
 # Model Parameters
 model:
-  n_models: 10              # Number of TabPFN models in ensemble
-  n_estimators: 1           # TabPFN estimators per model
+  n_models: 40              # Number of TabPFN models in ensemble (원본: 40)
+  n_estimators: 256         # TabPFN estimators per model (원본: 256)
   model_version: "v12"      # TabPFN version: v11 or v12
   random_seed: 42
   val_size: 0.2             # Validation split size
 
 # Feature Engineering
 features:
-  n_features: 80            # Number of features to select
+  n_features: 12            # Number of features to select (원본: 12)
   pca_components: 10        # PCA components for pressure data
   
   # Anomaly detection
@@ -41,7 +41,6 @@ selection:
   # Options: unanimous, strong, majority
   consensus_priority:
     - unanimous
-    - strong
   
   # Consensus thresholds
   thresholds:

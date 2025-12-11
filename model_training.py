@@ -62,7 +62,7 @@ def find_optimal_threshold(y_val, val_probs, target_ng_recall=0.40):
     return best_threshold
 
 
-def train_ensemble_tabpfn(X, y, X_test, n_estimators=1, n_models=10):
+def train_ensemble_tabpfn(X, y, X_test, n_estimators=256, n_models=10):
     """
     Train ensemble of TabPFN models with different random splits
     

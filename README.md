@@ -49,11 +49,11 @@ python main.py
 ```yaml
 # 모델 개수 변경
 model:
-  n_models: 10  # 앙상블 모델 개수
+  n_models: 40  # 앙상블 모델 개수
 
 # 피처 개수 변경
 features:
-  n_features: 80  # 최종 선택할 피처 개수
+  n_features: 12  # 최종 선택할 피처 개수
 
 # 선택 전략 변경
 selection:
@@ -115,8 +115,8 @@ paths:
 ### 모델 파라미터
 ```yaml
 model:
-  n_models: 10          # 앙상블 모델 개수 (추천: 5-15)
-  n_estimators: 1       # TabPFN estimators (보통 1로 고정)
+  n_models: 40          # 앙상블 모델 개수
+  n_estimators: 256       # TabPFN estimators
   model_version: "v12"  # v11 또는 v12
   val_size: 0.2         # Validation 비율
 ```
@@ -124,7 +124,7 @@ model:
 ### 피처 설정
 ```yaml
 features:
-  n_features: 80        # 최종 선택 피처 개수 (추천: 60-100)
+  n_features: 12        # 최종 선택 피처 개수 (추천: 60-100)
   pca_components: 10    # PCA 컴포넌트 개수
   
   anomaly:
@@ -182,47 +182,6 @@ selection:
 5. **Consensus 결과**: 각 레벨별 샘플 수
 6. **최종 선택**: 선택된 샘플 통계 및 구성
 
-## 🎯 권장 실험 설정
-
-### 빠른 테스트
-```yaml
-model:
-  n_models: 3
-features:
-  n_features: 50
-```
-
-### 기본 설정 (추천)
-```yaml
-model:
-  n_models: 10
-features:
-  n_features: 80
-```
-
-### 고성능 설정
-```yaml
-model:
-  n_models: 15
-features:
-  n_features: 100
-```
-
-## 📝 원본 코드와의 차이점
-
-### 개선 사항:
-1. ✅ **모듈화**: 단일 파일 → 7개 모듈로 분리
-2. ✅ **설정 외부화**: 하드코딩된 값 → YAML 설정 파일
-3. ✅ **재사용성**: 함수별 독립 실행 가능
-4. ✅ **유지보수**: 각 모듈이 명확한 역할 담당
-5. ✅ **확장성**: 새로운 피처/모델 추가 용이
-
-### 유지된 기능:
-- 모든 피처 엔지니어링 로직
-- 3단계 피처 선택 전략
-- TabPFN 앙상블 방식
-- Consensus 기반 선택 전략
-
 ## 🔍 디버깅 및 실험
 
 ### 특정 단계만 실행하기
@@ -243,7 +202,3 @@ for n_feat in [50, 80, 100]:
     # config.yaml의 n_features 변경 후
     # python main.py 실행
 ```
-
-## 📞 문의 및 개선사항
-
-코드 개선 제안이나 버그 리포트는 이슈로 등록해주세요!
