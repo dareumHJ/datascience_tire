@@ -1,0 +1,56 @@
+# =============================================================================
+# TabPFN Tire Quality Prediction - Configuration
+# =============================================================================
+
+# Paths
+paths:
+  train_data: "train.csv"          # Train CSV (no ID column, target column is 'Class')
+  test_data: "test.csv"            # Test CSV (has ID column)
+  sample_submission: "sample_submission.csv"
+  output_file: "submission_tabpfn_optimized.csv"
+
+# Model Parameters
+model:
+  n_models: 10              # Number of TabPFN models in ensemble
+  n_estimators: 1           # TabPFN estimators per model
+  model_version: "v12"      # TabPFN version: v11 or v12
+  random_seed: 42
+  val_size: 0.2             # Validation split size
+
+# Feature Engineering
+features:
+  n_features: 80            # Number of features to select
+  pca_components: 10        # PCA components for pressure data
+  
+  # Anomaly detection
+  anomaly:
+    contamination: 0.1
+    n_estimators: 100
+  
+  # Feature selection
+  selection:
+    mi_percentile: 20       # Mutual information percentile
+    f_percentile: 20        # F-statistic percentile
+
+# Selection Strategy
+selection:
+  max_samples: 200          # Maximum samples to select
+  max_probability: 1.0      # Maximum probability threshold (1.0 = no filter)
+  
+  # Consensus priority (order matters)
+  # Options: unanimous, strong, majority
+  consensus_priority:
+    - unanimous
+    - strong
+  
+  # Consensus thresholds
+  thresholds:
+    unanimous: 1.0          # All models agree (100%)
+    strong: 0.9             # 90%+ models agree
+    majority: 0.6           # 60%+ models agree
+
+# Processing Options
+processing:
+  verbose: true
+  n_jobs: -1                # CPU cores (-1 = all)
+  suppress_warnings: true
