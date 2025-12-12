@@ -278,7 +278,7 @@ def phase3_final_validation(X, y, stable_features, feature_counts, test_sizes=[8
     return best_features
 
 
-def split_bias_free_feature_selection(X, y, n_final=80):
+def split_bias_free_feature_selection(X, y, n_final=80, run_selection=True, predefined_features=None):
     """
     Complete 3-phase feature selection pipeline
     
@@ -286,12 +286,37 @@ def split_bias_free_feature_selection(X, y, n_final=80):
         X: Feature dataframe
         y: Target labels
         n_final: Target number of features
+        run_selection: If False, use predefined_features instead
+        predefined_features: List of feature names to use when run_selection=False
         
     Returns:
         final_features
     """
     print("\n[STEP 3] FEATURE SELECTION")
     print("-"*70)
+    
+    # Skip feature selection if run_selection=False
+    if not run_selection:
+        if predefined_features is None:
+            raise ValueError("predefined_features must be provided when run_selection=False")
+        
+        # Validate features exist
+        missing_features = [f for f in predefined_features if f not in X.columns]
+        if missing_features:
+            print(f"⚠️  Missing features: {missing_features}")
+            print(f"   Using available features only")
+            final_features = [f for f in predefined_features if f in X.columns]
+        else:
+            final_features = predefined_features
+        
+        print(f"   ⚡ SKIPPING feature selection (using predefined features)")
+        print(f"   Using {len(final_features)} predefined features:")
+        for i, feat in enumerate(final_features, 1):
+            print(f"      {i:2d}. {feat}")
+        
+        return final_features
+    
+    # Run full 3-phase selection
     print(f"   Using all {len(X)} samples for feature selection")
     
     # Phase 1: Model-free filtering

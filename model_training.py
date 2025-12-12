@@ -62,7 +62,7 @@ def find_optimal_threshold(y_val, val_probs, target_ng_recall=0.40):
     return best_threshold
 
 
-def train_ensemble_tabpfn(X, y, X_test, n_estimators=256, n_models=10):
+def train_ensemble_tabpfn(X, y, X_test, n_estimators=1, n_models=10):
     """
     Train ensemble of TabPFN models with different random splits
     
@@ -181,6 +181,16 @@ def train_ensemble_tabpfn(X, y, X_test, n_estimators=256, n_models=10):
     # Mean probability for ordering
     mean_probs = np.mean(all_test_probs, axis=0)
     
+    # ⭐ NEW: Calculate probability standard deviation across models
+    all_test_probs_array = np.array(all_test_probs)  # [n_models, n_samples]
+    prob_std = np.std(all_test_probs_array, axis=0)  # [n_samples]
+    
+    print(f"\n📊 Probability Std Statistics:")
+    print(f"  Mean std:   {np.mean(prob_std):.4f}")
+    print(f"  Median std: {np.median(prob_std):.4f}")
+    print(f"  Max std:    {np.max(prob_std):.4f}")
+    print(f"  Min std:    {np.min(prob_std):.4f}")
+    
     # Select best model
     best_model_idx = np.argmax(all_val_aucs)
     best_val_auc = all_val_aucs[best_model_idx]
@@ -189,4 +199,55 @@ def train_ensemble_tabpfn(X, y, X_test, n_estimators=256, n_models=10):
           f"with Val AUC: {best_val_auc:.4f}")
     
     return (mean_probs, unanimous_good, strong_consensus, majority_good, 
-            all_models, all_val_aucs, best_model_idx)
+            all_models, all_val_aucs, best_model_idx, prob_std)
+
+
+def train_final_model(X, y, X_test, n_estimators=256):
+    """
+    Train final model on FULL training data (no split)
+    
+    Args:
+        X: Full training features
+        y: Full training labels
+        X_test: Test features
+        n_estimators: Number of TabPFN estimators
+        
+    Returns:
+        final_model: Trained model on full data
+        final_probs: Probabilities on test set
+        final_preds: Binary predictions (Good=0, NG=1)
+        final_threshold: Optimal threshold
+    """
+    print("\n" + "="*70)
+    print("  FINAL MODEL TRAINING (Full Training Data)")
+    print("="*70)
+    print(f"  Training on ALL {len(X)} samples (no validation split)")
+    print(f"  Estimators: {n_estimators}")
+    
+    # Train on full data
+    final_model = TabPFNClassifier.create_default_for_version(
+        ModelVersion.V2,
+        device='auto',
+        n_estimators=n_estimators,
+        balance_probabilities=True
+    )
+    
+    final_model.fit(X, y)
+    print(f"  ✓ Model trained on full dataset")
+    
+    # Predict on test
+    final_probs = final_model.predict_proba(X_test)[:, 1]
+    
+    # Use fixed threshold (since we can't validate)
+    # Use conservative threshold for Good prediction
+    final_threshold = 0.5  # Standard threshold
+    final_preds = (final_probs >= final_threshold).astype(int)
+    
+    print(f"\n  Final Model Predictions:")
+    print(f"    Threshold: {final_threshold:.4f}")
+    print(f"    Predicted Good (0): {np.sum(final_preds == 0):3d} samples")
+    print(f"    Predicted NG (1):   {np.sum(final_preds == 1):3d} samples")
+    print(f"    Probability range:  {final_probs.min():.4f} - {final_probs.max():.4f}")
+    print(f"    Mean probability:   {final_probs.mean():.4f}")
+    
+    return final_model, final_probs, final_preds, final_threshold

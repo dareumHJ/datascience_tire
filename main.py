@@ -30,6 +30,24 @@ def select_samples(result_df, config):
     max_prob = config['selection']['max_probability']
     consensus_priority = config['selection']['consensus_priority']
     
+    # ⭐ NEW: Prob std filter
+    use_prob_std_filter = config['selection'].get('use_prob_std_filter', False)
+    max_prob_std = config['selection'].get('max_prob_std', 0.08)
+    
+    # Apply prob_std filter if enabled
+    if use_prob_std_filter:
+        print(f"\n⚡ Applying probability std filter (max_prob_std={max_prob_std})")
+        before = len(result_df)
+        result_df = result_df[result_df['prob_std'] <= max_prob_std].copy()
+        after = len(result_df)
+        removed = before - after
+        print(f"   Filtered out {removed} samples (std > {max_prob_std})")
+        print(f"   Remaining: {after} samples")
+        
+        if after == 0:
+            print(f"   ⚠️  No samples pass prob_std filter!")
+            print(f"   Suggestion: Increase max_prob_std (current: {max_prob_std})")
+    
     # Prepare consensus pools (sorted by final_probability ascending)
     consensus_pools = {
         'unanimous': result_df[result_df['unanimous_good']].copy().sort_values('final_probability'),
@@ -43,6 +61,10 @@ def select_samples(result_df, config):
             print(f"  {level.capitalize():12s}: {len(pool):3d} samples "
                   f"(final_prob range: {pool['final_probability'].min():.4f} - "
                   f"{pool['final_probability'].max():.4f})")
+            if use_prob_std_filter:
+                print(f"                      "
+                      f"(prob_std range: {pool['prob_std'].min():.4f} - "
+                      f"{pool['prob_std'].max():.4f})")
         else:
             print(f"  {level.capitalize():12s}: {len(pool):3d} samples")
     
@@ -52,12 +74,14 @@ def select_samples(result_df, config):
     
     print(f"\n[Selection Strategy]")
     print(f"  Priority: {' + '.join(consensus_priority)}")
+    if use_prob_std_filter:
+        print(f"  Prob std filter: ENABLED (max_prob_std={max_prob_std})")
     print(f"  Selecting ALL samples from specified consensus levels (max {max_samples})")
     
     for priority in consensus_priority:
         pool = consensus_pools[priority]
         
-        # Apply probability filter if specified
+        # Apply probability filter if specified (kept for backward compatibility)
         if max_prob < 1.0:
             pool = pool[pool['final_probability'] <= max_prob]
             if len(pool) == 0:
@@ -113,7 +137,10 @@ def main():
     
     # Step 3: Feature Selection
     final_features = split_bias_free_feature_selection(
-        X, y, n_final=config['features']['n_features']
+        X, y, 
+        n_final=config['features']['n_features'],
+        run_selection=config['features'].get('run_selection', True),
+        predefined_features=config['features'].get('predefined_features', None)
     )
     
     X_selected = X[final_features]
@@ -140,7 +167,7 @@ def main():
     print(f"   Each of {config['model']['n_models']} models will create its own train/val split")
     
     (mean_probs, unanimous_good, strong_consensus, majority_good, 
-     all_models, all_val_aucs, best_model_idx) = train_ensemble_tabpfn(
+     all_models, all_val_aucs, best_model_idx, prob_std) = train_ensemble_tabpfn(
         X_full_pt, y, X_test_pt, 
         n_estimators=config['model']['n_estimators'], 
         n_models=config['model']['n_models']
@@ -150,14 +177,29 @@ def main():
     best_model = all_models[best_model_idx]
     best_model_probs = best_model.predict_proba(X_test_pt)[:, 1]
     
+    print("\n[STEP 4.5] FINAL MODEL (Full Training Data)")
+    print("="*70)
+    
+    from model_training import train_final_model
+    final_model, final_probs, final_preds, final_threshold = train_final_model(
+        X_full_pt, y, X_test_pt, 
+        n_estimators=config['model']['n_estimators']
+    )
+    
+    # Final model says Good (prediction = 0)
+    final_good = (final_preds == 0)
+    
     # Step 5: Selection Strategy
     print("\n[STEP 5] SELECTION STRATEGY - FLEXIBLE CONSENSUS")
     print("="*70)
     
     result_df = pd.DataFrame({
         'ID': test_ids,
-        'mean_probability': mean_probs,
-        'final_probability': best_model_probs,
+        'final_probability': mean_probs,
+        'best_model_probability': best_model_probs,
+        'final_model_probability': final_probs,  # NEW: Final model 확률
+        'final_model_good': final_good,  # NEW: Final model 예측
+        'prob_std': prob_std,  # NEW: 확률 표준편차 추가
         'unanimous_good': unanimous_good,
         'strong_consensus': strong_consensus,
         'majority_good': majority_good
@@ -166,6 +208,27 @@ def main():
     # Select samples
     selected_ids, selection_breakdown = select_samples(result_df, config)
     
+    # ⭐ NEW: Apply final model filter if enabled
+    if config['selection'].get('use_final_model_filter', False):
+        print("\n⚡ Applying FINAL MODEL FILTER (intersection)")
+        before = len(selected_ids)
+        
+        # Keep only samples where final model ALSO says Good
+        final_model_good_ids = result_df[result_df['final_model_good']]['ID'].values
+        selected_ids = np.array([sid for sid in selected_ids if sid in final_model_good_ids])
+        
+        after = len(selected_ids)
+        removed = before - after
+        
+        print(f"   Before: {before} samples")
+        print(f"   Final model Good: {len(final_model_good_ids)} samples")
+        print(f"   Intersection: {after} samples")
+        print(f"   Removed: {removed} samples ({removed/before*100:.1f}%)")
+        
+        if after == 0:
+            print(f"   ⚠️  No samples pass final model filter!")
+            print(f"   Suggestion: Disable final model filter")
+    
     # Update decision column
     result_df['decision'] = False
     result_df.loc[result_df['ID'].isin(selected_ids), 'decision'] = True
@@ -173,8 +236,8 @@ def main():
     # Print summary
     print_selection_summary(result_df, selected_ids, selection_breakdown, config)
     
-    # Sort by mean probability
-    result_df = result_df.sort_values('mean_probability', ascending=True)
+    # Sort by final probability
+    result_df = result_df.sort_values('final_probability', ascending=True)
     
     # Create submission
     submission = create_submission(

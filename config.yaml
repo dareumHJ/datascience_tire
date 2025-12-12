@@ -11,7 +11,7 @@ paths:
 
 # Model Parameters
 model:
-  n_models: 40              # Number of TabPFN models in ensemble (원본: 40)
+  n_models: 200              # Number of TabPFN models in ensemble (원본: 40)
   n_estimators: 256         # TabPFN estimators per model (원본: 256)
   model_version: "v12"      # TabPFN version: v11 or v12
   random_seed: 42
@@ -21,6 +21,23 @@ model:
 features:
   n_features: 12            # Number of features to select (원본: 12)
   pca_components: 10        # PCA components for pressure data
+
+  run_selection: false      # True면 feature selection 실행, False면 아래 리스트 사용
+  
+  # run_selection=False일 때 사용할 피처 리스트 (이전 Phase 2 결과)
+  predefined_features:
+    - curvature_mean        # 95% 선택됨
+    - G1                    # 80%
+    - Inch                  # 80%
+    - Proc_Param3           # 80%
+    - p_kurtosis            # 80%
+    - G_diff_1              # 75%
+    - G_mean                # 70%
+    - curvature_max         # 60%
+    - G_max                 # 60%
+    - Proc_Param2           # 60%
+    - Proc_Param4           # 60%
+    - geom_area             # 60%
   
   # Anomaly detection
   anomaly:
@@ -34,19 +51,26 @@ features:
 
 # Selection Strategy
 selection:
-  max_samples: 200          # Maximum samples to select
+  max_samples: 120          # Maximum samples to select
   max_probability: 1.0      # Maximum probability threshold (1.0 = no filter)
+
+  use_prob_std_filter: true   # ENABLED
+  max_prob_std: 0.06          # 표준편차 0.08 이하만 선택, 낮을수록 엄격 (0.05~0.10)
+
+  # NEW: Final model filter (전체 데이터 학습 모델과 교집합)
+  use_final_model_filter: true  # true면 final model과 교집합만 선택
   
   # Consensus priority (order matters)
   # Options: unanimous, strong, majority
   consensus_priority:
     - unanimous
+    - strong
   
   # Consensus thresholds
   thresholds:
     unanimous: 1.0          # All models agree (100%)
-    strong: 0.9             # 90%+ models agree
-    majority: 0.6           # 60%+ models agree
+    strong: 0.995             # 95%+ models agree
+    majority: 0.99           # 90%+ models agree
 
 # Processing Options
 processing:
